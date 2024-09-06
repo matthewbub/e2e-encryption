@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <script>
+      const content = "hello world";
+
+      async function main() {
+        const key = await window.crypto.subtle.generateKey(
+          { name: "AES-GCM", length: 128 },
+          true, // extractable
+          ["encrypt", "decrypt"]
+        );
+
+        // console.log(key);
+
+        // Store this in the server
+        // DO NOT SEND THE KEY
+        const encrypted = await window.crypto.subtle.encrypt(
+          { name: "AES-GCM", iv: new Uint8Array(12) /* don't reuse key! */ },
+          key,
+          new TextEncoder().encode(JSON.stringify(content))
+        );
+        // console.log(typeof encrypted);
+        // console.log(encrypted);
+
+        // Give this to the user. e.g via a shareable link
+        const objectKey = (await window.crypto.subtle.exportKey("jwk", key)).k;
+        // console.log(objectKey);
+
+        // On the other side, decrypt the key
+        // const response = await fetch(`/download?id={id}`);
+        // const encrypted = await response.arrayBuffer();
+        // const objectKey = // get from the URL or something e.g. const objectKey = window.location.hash.slice("#key=".length);
+
+        // use the objectKey to decrypt the key
+        const downloadKey = await window.crypto.subtle.importKey(
+          "jwk",
+          {
+            k: objectKey,
+            alg: "A128GCM",
+            ext: true,
+            key_ops: ["encrypt", "decrypt"],
+            kty: "oct",
+          },
+          { name: "AES-GCM", length: 128 },
+          false, // extractable
+          ["decrypt"]
+        );
+
+        // use the downloadKey to decrypt the content
+        const decrypted = await window.crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: new Uint8Array(12) },
+          key,
+          encrypted
+        );
+        const decoded = new window.TextDecoder().decode(
+          new Uint8Array(decrypted)
+        );
+
+        const safeContent = JSON.parse(decoded);
+
+        console.log(safeContent);
+      }
+
+      main();
+    </script>
+  </body>
+</html>
